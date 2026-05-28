@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useMemo, useState } from "react";
 import {
   Debt,
@@ -44,6 +44,14 @@ export default function CalculatorPage() {
     () => simulate(validDebts, extra, strategy),
     [validDebts, extra, strategy]
   );
+
+  // Always compute the other method for comparison
+  const otherStrategy: Strategy = strategy === "snowball" ? "avalanche" : "snowball";
+  const otherPlan = useMemo(
+    () => simulate(validDebts, extra, otherStrategy),
+    [validDebts, extra, otherStrategy]
+  );
+
   const planNoExtra = useMemo(
     () => simulate(validDebts, 0, strategy),
     [validDebts, strategy]
@@ -52,14 +60,22 @@ export default function CalculatorPage() {
   const monthsSaved = planNoExtra.totalMonths - plan.totalMonths;
   const interestSaved = +(planNoExtra.totalInterest - plan.totalInterest).toFixed(2);
 
+  const totalPrincipal = validDebts.reduce((s, d) => s + d.balance, 0);
+
+  const interestDiff = +(plan.totalInterest - otherPlan.totalInterest).toFixed(2);
+  const monthsDiff = plan.totalMonths - otherPlan.totalMonths;
+
+  const strategyLabel = strategy === "snowball" ? "Snowball" : "Avalanche";
+  const otherLabel = otherStrategy === "snowball" ? "Snowball" : "Avalanche";
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-10">
       <header className="mb-8">
         <h1 className="text-3xl md:text-4xl font-extrabold text-brand-900">
-          Your Debt Snowball Plan
+          Your Debt Payoff Plan
         </h1>
         <p className="text-brand-800/80 mt-2">
-          Enter your debts below. We’ll build your plan instantly. Nothing is saved unless you sign in.
+          Enter your debts below. Switch between Snowball and Avalanche to compare. Nothing is saved unless you sign in.
         </p>
       </header>
 
@@ -141,29 +157,20 @@ export default function CalculatorPage() {
             <p className="text-xs text-brand-700/70 mt-1">Even $25 extra makes a real difference.</p>
           </div>
           <div>
-            <label className="label">Strategy</label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setStrategy("snowball")}
-                className={`flex-1 rounded-xl px-4 py-3 font-semibold border-2 ${
-                  strategy === "snowball"
-                    ? "bg-brand-600 text-white border-brand-600"
-                    : "bg-white text-brand-700 border-brand-200"
-                }`}
-              >
-                Snowball (smallest first)
-              </button>
-              <button
-                onClick={() => setStrategy("avalanche")}
-                className={`flex-1 rounded-xl px-4 py-3 font-semibold border-2 ${
-                  strategy === "avalanche"
-                    ? "bg-brand-600 text-white border-brand-600"
-                    : "bg-white text-brand-700 border-brand-200"
-                }`}
-              >
-                Avalanche (highest rate)
-              </button>
-            </div>
+            <label className="label">Payoff strategy</label>
+            <select
+              className="input"
+              value={strategy}
+              onChange={(e) => setStrategy(e.target.value as Strategy)}
+            >
+              <option value="snowball">❄️ Debt Snowball — smallest balance first</option>
+              <option value="avalanche">🏔️ Debt Avalanche — highest interest rate first</option>
+            </select>
+            <p className="text-xs text-brand-700/70 mt-1">
+              {strategy === "snowball"
+                ? "Snowball: pay minimums on all debts, attack the smallest balance first."
+                : "Avalanche: pay minimums on all debts, attack the highest rate first — saves the most interest."}
+            </p>
           </div>
         </div>
       </div>
@@ -175,19 +182,89 @@ export default function CalculatorPage() {
         </div>
       ) : (
         <>
+          {/* Main stats */}
           <div className="grid md:grid-cols-4 gap-4 mt-8">
             <Stat label="Debt free in" value={formatMonths(plan.totalMonths)} highlight />
-            <Stat label="Total interest" value={formatMoney(plan.totalInterest)} />
-            <Stat label="Total paid" value={formatMoney(plan.totalPaid)} />
+            <Stat label="Total interest paid" value={formatMoney(plan.totalInterest)} />
+            <Stat label="Total principal paid" value={formatMoney(totalPrincipal)} />
             <Stat
               label="Saved with extra"
               value={
                 extra > 0
-                  ? `${formatMonths(monthsSaved)} • ${formatMoney(interestSaved)}`
+                  ? `${formatMonths(monthsSaved)} · ${formatMoney(interestSaved)}`
                   : "Add extra ↑"
               }
               highlight={extra > 0}
             />
+          </div>
+
+          {/* Total paid breakdown */}
+          <div className="card mt-4">
+            <h3 className="text-lg font-bold text-brand-900 mb-4">Payment breakdown — {strategyLabel}</h3>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div className="bg-brand-50 rounded-xl p-4">
+                <p className="text-sm text-brand-700 font-semibold">Total principal</p>
+                <p className="text-2xl font-extrabold text-brand-900 mt-1">{formatMoney(totalPrincipal)}</p>
+                <p className="text-xs text-brand-700/60 mt-1">The actual debt you owe</p>
+              </div>
+              <div className="bg-red-50 rounded-xl p-4">
+                <p className="text-sm text-red-700 font-semibold">Total interest paid</p>
+                <p className="text-2xl font-extrabold text-red-700 mt-1">{formatMoney(plan.totalInterest)}</p>
+                <p className="text-xs text-red-600/60 mt-1">Cost of carrying debt</p>
+              </div>
+              <div className="bg-green-50 rounded-xl p-4">
+                <p className="text-sm text-green-700 font-semibold">Grand total paid</p>
+                <p className="text-2xl font-extrabold text-green-800 mt-1">{formatMoney(plan.totalPaid)}</p>
+                <p className="text-xs text-green-700/60 mt-1">Principal + interest</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Method comparison banner */}
+          <div className="card mt-4 border-2 border-amber-200 bg-amber-50">
+            <h3 className="text-lg font-bold text-brand-900 mb-3">
+              How does {strategyLabel} compare to {otherLabel}?
+            </h3>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-brand-700 font-semibold mb-1">Interest difference</p>
+                {interestDiff === 0 ? (
+                  <p className="text-brand-900">Both methods cost the same in interest.</p>
+                ) : interestDiff > 0 ? (
+                  <p className="text-brand-900">
+                    Switching to <strong>{otherLabel}</strong> would save you{" "}
+                    <span className="text-green-700 font-extrabold">{formatMoney(interestDiff)}</span> in interest.
+                  </p>
+                ) : (
+                  <p className="text-brand-900">
+                    {strategyLabel} saves you{" "}
+                    <span className="text-green-700 font-extrabold">{formatMoney(Math.abs(interestDiff))}</span> in interest vs. {otherLabel}.
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="text-sm text-brand-700 font-semibold mb-1">Time difference</p>
+                {monthsDiff === 0 ? (
+                  <p className="text-brand-900">Both methods finish in the same number of months.</p>
+                ) : monthsDiff > 0 ? (
+                  <p className="text-brand-900">
+                    {otherLabel} finishes{" "}
+                    <span className="text-green-700 font-extrabold">{formatMonths(Math.abs(monthsDiff))}</span> sooner.
+                  </p>
+                ) : (
+                  <p className="text-brand-900">
+                    {strategyLabel} finishes{" "}
+                    <span className="text-green-700 font-extrabold">{formatMonths(Math.abs(monthsDiff))}</span> sooner than {otherLabel}.
+                  </p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => setStrategy(otherStrategy)}
+              className="mt-4 text-sm font-semibold text-brand-700 underline hover:text-brand-900"
+            >
+              Switch to {otherLabel} →
+            </button>
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6 mt-8">
@@ -202,13 +279,13 @@ export default function CalculatorPage() {
           </div>
 
           <div className="card mt-6">
-            <h3 className="text-lg font-bold text-brand-900 mb-4">Payoff order</h3>
+            <h3 className="text-lg font-bold text-brand-900 mb-4">Payoff order — {strategyLabel}</h3>
             <Timeline plan={plan} />
           </div>
 
           <div className="card mt-6 overflow-x-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-brand-900">Results table</h3>
+              <h3 className="text-lg font-bold text-brand-900">Results table — {strategyLabel}</h3>
               <button onClick={() => downloadPlan(validDebts, plan)} className="btn-secondary !py-2 !px-4 !text-base">
                 ⬇ Download as Excel
               </button>
@@ -218,8 +295,9 @@ export default function CalculatorPage() {
                 <tr className="text-sm text-brand-700 border-b border-brand-100">
                   <th className="py-2">#</th>
                   <th className="py-2">Debt</th>
-                  <th className="py-2">Starting balance</th>
+                  <th className="py-2">Principal</th>
                   <th className="py-2">Interest paid</th>
+                  <th className="py-2">Total paid</th>
                   <th className="py-2">Paid off</th>
                 </tr>
               </thead>
@@ -232,12 +310,22 @@ export default function CalculatorPage() {
                       <td className="py-3 font-semibold">{i + 1}</td>
                       <td className="py-3">{res.name || "(unnamed)"}</td>
                       <td className="py-3">{formatMoney(orig.balance)}</td>
-                      <td className="py-3">{formatMoney(res.interestPaid)}</td>
+                      <td className="py-3 text-red-600">{formatMoney(res.interestPaid)}</td>
+                      <td className="py-3 font-semibold">{formatMoney(orig.balance + res.interestPaid)}</td>
                       <td className="py-3">Month {res.payoffMonth} ({formatMonths(res.payoffMonth)})</td>
                     </tr>
                   );
                 })}
               </tbody>
+              <tfoot className="border-t-2 border-brand-200">
+                <tr>
+                  <td className="py-3 font-bold" colSpan={2}>Totals</td>
+                  <td className="py-3 font-bold">{formatMoney(totalPrincipal)}</td>
+                  <td className="py-3 font-bold text-red-600">{formatMoney(plan.totalInterest)}</td>
+                  <td className="py-3 font-bold">{formatMoney(plan.totalPaid)}</td>
+                  <td className="py-3 font-bold">{formatMonths(plan.totalMonths)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </>
